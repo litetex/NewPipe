@@ -111,7 +111,7 @@ ext {
     markwonVersion = '4.6.0'
 
     leakCanaryVersion = '2.5'
-    stethoVersion = '1.5.1'
+    stethoVersion = '1.6.0'
     mockitoVersion = '3.6.0'
 }
 
