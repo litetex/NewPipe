@@ -101,7 +101,7 @@ android {
 ext {
     checkstyleVersion = '8.38'
 
-    androidxLifecycleVersion = '2.2.0'
+    androidxLifecycleVersion = '2.3.1'
     androidxRoomVersion = '2.3.0-alpha03'
 
     icepickVersion = '3.2.0'
