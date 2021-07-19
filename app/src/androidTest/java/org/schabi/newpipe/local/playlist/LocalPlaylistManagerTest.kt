@@ -27,8 +27,8 @@ class LocalPlaylistManagerTest {
     @Before
     fun setup() {
         database = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            AppDatabase::class.java
+                ApplicationProvider.getApplicationContext(),
+                AppDatabase::class.java
         )
             .allowMainThreadQueries()
             .build()
