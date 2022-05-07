@@ -41,8 +41,8 @@ import org.schabi.newpipe.extractor.exceptions.ContentNotSupportedException;
 import org.schabi.newpipe.extractor.stream.StreamInfoItem;
 import org.schabi.newpipe.fragments.list.BaseListInfoFragment;
 import org.schabi.newpipe.ktx.AnimationType;
-import org.schabi.newpipe.local.subscription.SubscriptionManager;
 import org.schabi.newpipe.local.feed.notifications.NotificationHelper;
+import org.schabi.newpipe.local.subscription.SubscriptionManager;
 import org.schabi.newpipe.player.MainPlayer.PlayerType;
 import org.schabi.newpipe.player.playqueue.ChannelPlayQueue;
 import org.schabi.newpipe.player.playqueue.PlayQueue;
@@ -334,13 +334,7 @@ public class ChannelFragment extends BaseListInfoFragment<StreamInfoItem, Channe
                 if (DEBUG) {
                     Log.d(TAG, "No subscription to this channel!");
                 }
-                final SubscriptionEntity channel = new SubscriptionEntity();
-                channel.setServiceId(info.getServiceId());
-                channel.setUrl(info.getUrl());
-                channel.setData(info.getName(),
-                        info.getAvatarUrl(),
-                        info.getDescription(),
-                        info.getSubscriberCount());
+                final SubscriptionEntity channel = new SubscriptionEntity(info);
                 updateNotifyButton(null);
                 subscribeButtonMonitor = monitorSubscribeButton(
                         headerBinding.channelSubscribeButton, mapOnSubscribe(channel, info));

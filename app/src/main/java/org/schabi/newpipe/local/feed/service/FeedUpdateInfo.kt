@@ -19,8 +19,8 @@ data class FeedUpdateInfo(
     ) : this(
         uid = subscription.uid,
         notificationMode = subscription.notificationMode,
-        name = subscription.name,
-        avatarUrl = subscription.avatarUrl,
+        name = subscription.name!!,
+        avatarUrl = subscription.avatarUrl!!,
         listInfo = listInfo,
     )
 

@@ -477,7 +477,7 @@ class FeedFragment : BaseStateFragment<FeedState>() {
                 R.string.unsubscribe
             ) { _, _ ->
                 SubscriptionManager(requireContext()).deleteSubscription(
-                    subscriptionEntity.serviceId, subscriptionEntity.url
+                    subscriptionEntity.serviceId, subscriptionEntity.url!!
                 ).subscribe()
                 handleItemsErrors(nextItemsErrors)
             }

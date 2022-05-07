@@ -52,10 +52,10 @@ class NotificationModeConfigAdapter(
             newData.map {
                 SubscriptionItem(
                     id = it.uid,
-                    title = it.name,
+                    title = it.name!!,
                     notificationMode = it.notificationMode,
                     serviceId = it.serviceId,
-                    url = it.url
+                    url = it.url!!
                 )
             }
         )

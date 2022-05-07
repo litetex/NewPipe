@@ -76,7 +76,8 @@ class DatabaseMigrationTest {
         ).forEach { (version, migration) ->
             testHelper.runMigrationsAndValidate(
                 AppDatabase.DATABASE_NAME, version,
-                true, migration)
+                true, migration
+            )
         }
 
         val migratedDatabase = getMigratedDatabase()
