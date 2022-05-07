@@ -37,7 +37,7 @@ class DatabaseMigrationTest {
     )
 
     @Test
-    fun migrateDatabaseFrom2to3() {
+    fun migrateDatabaseFrom2() {
         val databaseInV2 = testHelper.createDatabase(AppDatabase.DATABASE_NAME, Migrations.DB_VER_2)
 
         databaseInV2.run {
@@ -69,23 +69,18 @@ class DatabaseMigrationTest {
             close()
         }
 
-        testHelper.runMigrationsAndValidate(
-            AppDatabase.DATABASE_NAME, Migrations.DB_VER_3,
-            true, Migrations.MIGRATION_2_3
-        )
+        mapOf(
+            Migrations.DB_VER_3 to Migrations.MIGRATION_2_3,
+            Migrations.DB_VER_4 to Migrations.MIGRATION_3_4,
+            Migrations.DB_VER_5 to Migrations.MIGRATION_4_5
+        ).forEach { (version, migration) ->
+            testHelper.runMigrationsAndValidate(
+                AppDatabase.DATABASE_NAME, version,
+                true, migration)
+        }
 
-        testHelper.runMigrationsAndValidate(
-            AppDatabase.DATABASE_NAME, Migrations.DB_VER_4,
-            true, Migrations.MIGRATION_3_4
-        )
-
-        testHelper.runMigrationsAndValidate(
-            AppDatabase.DATABASE_NAME, Migrations.DB_VER_5,
-            true, Migrations.MIGRATION_4_5
-        )
-
-        val migratedDatabaseV3 = getMigratedDatabase()
-        val listFromDB = migratedDatabaseV3.streamDAO().all.blockingFirst()
+        val migratedDatabase = getMigratedDatabase()
+        val listFromDB = migratedDatabase.streamDAO().all.blockingFirst()
 
         // Only expect 2, the one with the null url will be ignored
         assertEquals(2, listFromDB.size)
