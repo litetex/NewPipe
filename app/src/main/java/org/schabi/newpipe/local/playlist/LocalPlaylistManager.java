@@ -40,8 +40,7 @@ public class LocalPlaylistManager {
             return Maybe.empty();
         }
         final StreamEntity defaultStream = streams.get(0);
-        final PlaylistEntity newPlaylist =
-                new PlaylistEntity(name, defaultStream.getThumbnailUrl());
+        final PlaylistEntity newPlaylist = new PlaylistEntity(name, defaultStream);
 
         return Maybe.fromCallable(() -> database.runInTransaction(() ->
                 upsertStreams(playlistTable.insert(newPlaylist), streams, 0))
