@@ -3,14 +3,14 @@ package org.schabi.newpipe.util;
 import androidx.annotation.NonNull;
 
 import org.schabi.newpipe.extractor.MediaFormat;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.Stream;
-import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.streamdata.stream.AudioStream;
+import org.schabi.newpipe.extractor.streamdata.stream.Stream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
 import org.schabi.newpipe.util.StreamItemAdapter.StreamSizeWrapper;
 
 import java.util.List;
 
-public class SecondaryStreamHelper<T extends Stream> {
+public class SecondaryStreamHelper<T extends Stream<?>> {
     private final int position;
     private final StreamSizeWrapper<T> streams;
 

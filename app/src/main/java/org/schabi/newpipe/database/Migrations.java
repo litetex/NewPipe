@@ -3,6 +3,8 @@ package org.schabi.newpipe.database;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.room.DeleteColumn;
+import androidx.room.migration.AutoMigrationSpec;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
@@ -23,6 +25,8 @@ public final class Migrations {
     public static final int DB_VER_3 = 3;
     public static final int DB_VER_4 = 4;
     public static final int DB_VER_5 = 5;
+    public static final int DB_VER_6 = 6;
+    public static final int DB_VER_7 = 7;
 
     private static final String TAG = Migrations.class.getName();
     public static final boolean DEBUG = MainActivity.DEBUG;
@@ -184,9 +188,36 @@ public final class Migrations {
         @Override
         public void migrate(@NonNull final SupportSQLiteDatabase database) {
             database.execSQL("ALTER TABLE `subscriptions` ADD COLUMN `notification_mode` "
-                     + "INTEGER NOT NULL DEFAULT 0");
+                    + "INTEGER NOT NULL DEFAULT 0");
         }
     };
+
+    public static final Migration MIGRATION_5_6 = new Migration(DB_VER_5, DB_VER_6) {
+        @Override
+        public void migrate(@NonNull final SupportSQLiteDatabase database) {
+            // Create new columns
+            database.execSQL(
+                    "ALTER TABLE `streams` ADD COLUMN `live` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL(
+                    "ALTER TABLE `streams` ADD COLUMN `audioOnly` INTEGER NOT NULL DEFAULT 0");
+
+            // Migrate the data
+            database.execSQL("UPDATE `streams` "
+                    + "SET live=1 "
+                    + "WHERE stream_type IN ('LIVE_STREAM', 'AUDIO_LIVE_STREAM')");
+            database.execSQL("UPDATE `streams` "
+                    + "SET audioOnly=1 "
+                    + "WHERE stream_type IN ('AUDIO_STREAM', 'AUDIO_LIVE_STREAM')");
+
+            // Drop old column
+            // Is done by auto-migration 6 to 7
+        }
+    };
+
+    @DeleteColumn(tableName = "streams", columnName = "stream_type")
+    public static class AutoMigration67 implements AutoMigrationSpec {
+        // Everything is handled by annotations
+    }
 
     private Migrations() {
     }

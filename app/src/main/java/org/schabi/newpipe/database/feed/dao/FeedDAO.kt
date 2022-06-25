@@ -91,8 +91,7 @@ abstract class FeedDAO {
             OR sst.stream_id IS NULL
             OR sst.progress_time < s.duration * 1000 - ${StreamStateEntity.PLAYBACK_FINISHED_END_MILLISECONDS}
             OR sst.progress_time < s.duration * 1000 * 3 / 4
-            OR s.stream_type = 'LIVE_STREAM'
-            OR s.stream_type = 'AUDIO_LIVE_STREAM'
+            OR s.live = 1
         )
 
         ORDER BY s.upload_date IS NULL DESC, s.upload_date DESC, s.uploader ASC
@@ -131,8 +130,7 @@ abstract class FeedDAO {
             OR sst.stream_id IS NULL
             OR sst.progress_time < s.duration * 1000 - ${StreamStateEntity.PLAYBACK_FINISHED_END_MILLISECONDS}
             OR sst.progress_time < s.duration * 1000 * 3 / 4
-            OR s.stream_type = 'LIVE_STREAM'
-            OR s.stream_type = 'AUDIO_LIVE_STREAM'
+            OR s.live = 1
         )
 
         ORDER BY s.upload_date IS NULL DESC, s.upload_date DESC, s.uploader ASC
@@ -169,7 +167,7 @@ abstract class FeedDAO {
             INNER JOIN feed f
             ON s.uid = f.stream_id
 
-            WHERE s.stream_type = "LIVE_STREAM" OR s.stream_type = "AUDIO_LIVE_STREAM"
+            WHERE s.live = 1
         )
         """
     )

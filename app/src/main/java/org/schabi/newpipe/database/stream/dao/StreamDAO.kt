@@ -11,9 +11,6 @@ import io.reactivex.rxjava3.core.Flowable
 import org.schabi.newpipe.database.BasicDAO
 import org.schabi.newpipe.database.stream.model.StreamEntity
 import org.schabi.newpipe.database.stream.model.StreamEntity.Companion.STREAM_ID
-import org.schabi.newpipe.extractor.stream.StreamType
-import org.schabi.newpipe.extractor.stream.StreamType.AUDIO_LIVE_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.LIVE_STREAM
 import java.time.OffsetDateTime
 
 @Dao
@@ -44,7 +41,7 @@ abstract class StreamDAO : BasicDAO<StreamEntity> {
 
     @Query(
         """
-        SELECT uid, stream_type, textual_upload_date, upload_date, is_upload_date_approximation, duration 
+        SELECT uid, live, audio_only, textual_upload_date, upload_date, is_upload_date_approximation, duration 
         FROM streams WHERE url = :url AND service_id = :serviceId
         """
     )
@@ -91,8 +88,7 @@ abstract class StreamDAO : BasicDAO<StreamEntity> {
             ?: throw IllegalStateException("Stream cannot be null just after insertion.")
         newerStream.uid = existentMinimalStream.uid
 
-        val isNewerStreamLive = newerStream.streamType == AUDIO_LIVE_STREAM || newerStream.streamType == LIVE_STREAM
-        if (!isNewerStreamLive) {
+        if (!newerStream.live) {
 
             // Use the existent upload date if the newer stream does not have a better precision
             // (i.e. is an approximation). This is done to prevent unnecessary changes.
@@ -133,8 +129,11 @@ abstract class StreamDAO : BasicDAO<StreamEntity> {
         @ColumnInfo(name = STREAM_ID)
         var uid: Long = 0,
 
-        @ColumnInfo(name = StreamEntity.STREAM_TYPE)
-        var streamType: StreamType,
+        @ColumnInfo(name = StreamEntity.STREAM_LIVE)
+        var live: Boolean,
+
+        @ColumnInfo(name = StreamEntity.STREAM_AUDIO_ONLY)
+        var audioOnly: Boolean,
 
         @ColumnInfo(name = StreamEntity.STREAM_TEXTUAL_UPLOAD_DATE)
         var textualUploadDate: String? = null,

@@ -1,7 +1,6 @@
 package org.schabi.newpipe.database
 
 import androidx.room.TypeConverter
-import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.local.subscription.FeedGroupIcon
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -28,16 +27,6 @@ object Converters {
     @TypeConverter
     fun offsetDateTimeToTimestamp(offsetDateTime: OffsetDateTime?): Long? {
         return offsetDateTime?.withOffsetSameInstant(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
-    }
-
-    @TypeConverter
-    fun streamTypeOf(value: String): StreamType {
-        return StreamType.valueOf(value)
-    }
-
-    @TypeConverter
-    fun stringOf(streamType: StreamType): String {
-        return streamType.name
     }
 
     @TypeConverter

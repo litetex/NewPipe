@@ -1,16 +1,5 @@
 package org.schabi.newpipe.player.playqueue;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.schabi.newpipe.extractor.stream.StreamInfoItem;
-import org.schabi.newpipe.extractor.stream.StreamType;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -19,6 +8,16 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
+
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.schabi.newpipe.extractor.stream.StreamInfoItem;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 public class PlayQueueTest {
@@ -39,7 +38,7 @@ public class PlayQueueTest {
 
     static PlayQueueItem makeItemWithUrl(final String url) {
         final StreamInfoItem infoItem = new StreamInfoItem(
-                0, url, "", StreamType.VIDEO_STREAM
+                0, url, "", false, false
         );
         return new PlayQueueItem(infoItem);
     }

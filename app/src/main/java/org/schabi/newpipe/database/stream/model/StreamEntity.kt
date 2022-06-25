@@ -11,7 +11,6 @@ import org.schabi.newpipe.database.stream.model.StreamEntity.Companion.STREAM_UR
 import org.schabi.newpipe.extractor.localization.DateWrapper
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
-import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.player.playqueue.PlayQueueItem
 import java.io.Serializable
 import java.time.OffsetDateTime
@@ -36,8 +35,11 @@ data class StreamEntity(
     @ColumnInfo(name = STREAM_TITLE)
     var title: String,
 
-    @ColumnInfo(name = STREAM_TYPE)
-    var streamType: StreamType,
+    @ColumnInfo(name = STREAM_LIVE)
+    var live: Boolean,
+
+    @ColumnInfo(name = STREAM_AUDIO_ONLY)
+    var audioOnly: Boolean,
 
     @ColumnInfo(name = STREAM_DURATION)
     var duration: Long,
@@ -65,31 +67,53 @@ data class StreamEntity(
 ) : Serializable {
     @Ignore
     constructor(item: StreamInfoItem) : this(
-        serviceId = item.serviceId, url = item.url, title = item.name,
-        streamType = item.streamType, duration = item.duration, uploader = item.uploaderName,
-        uploaderUrl = item.uploaderUrl, thumbnailUrl = item.thumbnailUrl, viewCount = item.viewCount,
-        textualUploadDate = item.textualUploadDate, uploadDate = item.uploadDate?.offsetDateTime(),
+        serviceId = item.serviceId,
+        url = item.url,
+        title = item.name,
+        live = item.isLive,
+        audioOnly = item.isAudioOnly,
+        duration = item.duration,
+        uploader = item.uploaderName,
+        uploaderUrl = item.uploaderUrl,
+        thumbnailUrl = item.thumbnailUrl,
+        viewCount = item.viewCount,
+        textualUploadDate = item.textualUploadDate,
+        uploadDate = item.uploadDate?.offsetDateTime(),
         isUploadDateApproximation = item.uploadDate?.isApproximation
     )
 
     @Ignore
     constructor(info: StreamInfo) : this(
-        serviceId = info.serviceId, url = info.url, title = info.name,
-        streamType = info.streamType, duration = info.duration, uploader = info.uploaderName,
-        uploaderUrl = info.uploaderUrl, thumbnailUrl = info.thumbnailUrl, viewCount = info.viewCount,
-        textualUploadDate = info.textualUploadDate, uploadDate = info.uploadDate?.offsetDateTime(),
+        serviceId = info.serviceId,
+        url = info.url,
+        title = info.name,
+        live = info.isLive,
+        audioOnly = info.isAudioOnly,
+        duration = info.duration,
+        uploader = info.uploaderName,
+        uploaderUrl = info.uploaderUrl,
+        thumbnailUrl = info.thumbnailUrl,
+        viewCount = info.viewCount,
+        textualUploadDate = info.textualUploadDate,
+        uploadDate = info.uploadDate?.offsetDateTime(),
         isUploadDateApproximation = info.uploadDate?.isApproximation
     )
 
     @Ignore
     constructor(item: PlayQueueItem) : this(
-        serviceId = item.serviceId, url = item.url, title = item.title,
-        streamType = item.streamType, duration = item.duration, uploader = item.uploader,
-        uploaderUrl = item.uploaderUrl, thumbnailUrl = item.thumbnailUrl
+        serviceId = item.serviceId,
+        url = item.url,
+        title = item.title,
+        live = item.isLive,
+        audioOnly = item.isAudioOnly,
+        duration = item.duration,
+        uploader = item.uploader,
+        uploaderUrl = item.uploaderUrl,
+        thumbnailUrl = item.thumbnailUrl
     )
 
     fun toStreamInfoItem(): StreamInfoItem {
-        val item = StreamInfoItem(serviceId, url, title, streamType)
+        val item = StreamInfoItem(serviceId, url, title, live, audioOnly)
         item.duration = duration
         item.uploaderName = uploader
         item.uploaderUrl = uploaderUrl
@@ -110,7 +134,8 @@ data class StreamEntity(
         const val STREAM_SERVICE_ID = "service_id"
         const val STREAM_URL = "url"
         const val STREAM_TITLE = "title"
-        const val STREAM_TYPE = "stream_type"
+        const val STREAM_LIVE = "live"
+        const val STREAM_AUDIO_ONLY = "audio_only"
         const val STREAM_DURATION = "duration"
         const val STREAM_UPLOADER = "uploader"
         const val STREAM_UPLOADER_URL = "uploader_url"

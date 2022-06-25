@@ -5,7 +5,6 @@ import androidx.annotation.Nullable;
 
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.StreamInfoItem;
-import org.schabi.newpipe.extractor.stream.StreamType;
 import org.schabi.newpipe.util.ExtractorHelper;
 
 import java.io.Serializable;
@@ -28,8 +27,8 @@ public class PlayQueueItem implements Serializable {
     @NonNull
     private final String uploader;
     private final String uploaderUrl;
-    @NonNull
-    private final StreamType streamType;
+    private final boolean live;
+    private final boolean audioOnly;
 
     private boolean isAutoQueued;
 
@@ -39,7 +38,7 @@ public class PlayQueueItem implements Serializable {
     PlayQueueItem(@NonNull final StreamInfo info) {
         this(info.getName(), info.getUrl(), info.getServiceId(), info.getDuration(),
                 info.getThumbnailUrl(), info.getUploaderName(),
-                info.getUploaderUrl(), info.getStreamType());
+                info.getUploaderUrl(), info.isLive(), info.isAudioOnly());
 
         if (info.getStartPosition() > 0) {
             setRecoveryPosition(info.getStartPosition() * 1000);
@@ -49,14 +48,14 @@ public class PlayQueueItem implements Serializable {
     PlayQueueItem(@NonNull final StreamInfoItem item) {
         this(item.getName(), item.getUrl(), item.getServiceId(), item.getDuration(),
                 item.getThumbnailUrl(), item.getUploaderName(),
-                item.getUploaderUrl(), item.getStreamType());
+                item.getUploaderUrl(), item.isLive(), item.isAudioOnly());
     }
 
     @SuppressWarnings("ParameterNumber")
     private PlayQueueItem(@Nullable final String name, @Nullable final String url,
                           final int serviceId, final long duration,
                           @Nullable final String thumbnailUrl, @Nullable final String uploader,
-                          final String uploaderUrl, @NonNull final StreamType streamType) {
+                          final String uploaderUrl, final boolean live, final boolean audioOnly) {
         this.title = name != null ? name : EMPTY_STRING;
         this.url = url != null ? url : EMPTY_STRING;
         this.serviceId = serviceId;
@@ -64,7 +63,8 @@ public class PlayQueueItem implements Serializable {
         this.thumbnailUrl = thumbnailUrl != null ? thumbnailUrl : EMPTY_STRING;
         this.uploader = uploader != null ? uploader : EMPTY_STRING;
         this.uploaderUrl = uploaderUrl;
-        this.streamType = streamType;
+        this.live = live;
+        this.audioOnly = audioOnly;
 
         this.recoveryPosition = RECOVERY_UNSET;
     }
@@ -101,9 +101,12 @@ public class PlayQueueItem implements Serializable {
         return uploaderUrl;
     }
 
-    @NonNull
-    public StreamType getStreamType() {
-        return streamType;
+    public boolean isLive() {
+        return live;
+    }
+
+    public boolean isAudioOnly() {
+        return audioOnly;
     }
 
     public long getRecoveryPosition() {
