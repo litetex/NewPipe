@@ -16,7 +16,6 @@ import org.schabi.newpipe.database.stream.StreamWithState
 import org.schabi.newpipe.database.stream.model.StreamEntity
 import org.schabi.newpipe.database.subscription.NotificationMode
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
-import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.local.subscription.FeedGroupIcon
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -92,7 +91,7 @@ class FeedDatabaseManager(context: Context) {
             val uploadDate = streamItem.uploadDate
 
             itemsToInsert += when {
-                uploadDate == null && streamItem.streamType == StreamType.LIVE_STREAM -> streamItem
+                uploadDate == null && streamItem.isLive -> streamItem
                 uploadDate != null && uploadDate.offsetDateTime() >= oldestAllowedDate -> streamItem
                 else -> continue@loop
             }

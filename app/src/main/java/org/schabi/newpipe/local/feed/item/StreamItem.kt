@@ -11,15 +11,8 @@ import org.schabi.newpipe.R
 import org.schabi.newpipe.database.stream.StreamWithState
 import org.schabi.newpipe.database.stream.model.StreamEntity
 import org.schabi.newpipe.databinding.ListStreamItemBinding
-import org.schabi.newpipe.extractor.stream.StreamType.AUDIO_LIVE_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.AUDIO_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.LIVE_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.POST_LIVE_AUDIO_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.POST_LIVE_STREAM
-import org.schabi.newpipe.extractor.stream.StreamType.VIDEO_STREAM
 import org.schabi.newpipe.util.Localization
 import org.schabi.newpipe.util.PicassoHelper
-import org.schabi.newpipe.util.StreamTypeUtil
 import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 
@@ -85,7 +78,7 @@ data class StreamItem(
             } else {
                 viewBinding.itemProgressView.visibility = View.GONE
             }
-        } else if (StreamTypeUtil.isLiveStream(stream.streamType)) {
+        } else if (stream.live) {
             viewBinding.itemDurationView.setText(R.string.duration_live)
             viewBinding.itemDurationView.setBackgroundColor(
                 ContextCompat.getColor(
@@ -109,20 +102,18 @@ data class StreamItem(
 
         execBindEnd?.accept(viewBinding)
     }
-
-    override fun isLongClickable() = when (stream.streamType) {
-        AUDIO_STREAM, VIDEO_STREAM, LIVE_STREAM, AUDIO_LIVE_STREAM, POST_LIVE_STREAM, POST_LIVE_AUDIO_STREAM -> true
-        else -> false
-    }
-
+    
     private fun getStreamInfoDetailLine(context: Context): String {
         var viewsAndDate = ""
         val viewCount = stream.viewCount
         if (viewCount != null && viewCount >= 0) {
-            viewsAndDate = when (stream.streamType) {
-                AUDIO_LIVE_STREAM -> Localization.listeningCount(context, viewCount)
-                LIVE_STREAM -> Localization.shortWatchingCount(context, viewCount)
-                else -> Localization.shortViewCount(context, viewCount)
+            viewsAndDate = if (stream.live) {
+                if (stream.audioOnly)
+                    Localization.listeningCount(context, viewCount)
+                else
+                    Localization.shortWatchingCount(context, viewCount)
+            } else {
+                Localization.shortViewCount(context, viewCount)
             }
         }
         val uploadDate = getFormattedRelativeUploadDate(context)

@@ -159,11 +159,9 @@ import org.schabi.newpipe.error.ErrorInfo;
 import org.schabi.newpipe.error.ErrorUtil;
 import org.schabi.newpipe.error.UserAction;
 import org.schabi.newpipe.extractor.Info;
-import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.StreamSegment;
-import org.schabi.newpipe.extractor.stream.StreamType;
-import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
 import org.schabi.newpipe.fragments.OnScrollBelowItemsListener;
 import org.schabi.newpipe.fragments.detail.VideoDetailFragment;
 import org.schabi.newpipe.info_list.StreamSegmentAdapter;
@@ -203,9 +201,11 @@ import org.schabi.newpipe.util.ListHelper;
 import org.schabi.newpipe.util.NavigationHelper;
 import org.schabi.newpipe.util.PicassoHelper;
 import org.schabi.newpipe.util.SerializedCache;
-import org.schabi.newpipe.util.StreamTypeUtil;
+import org.schabi.newpipe.util.VideoQualityStringifier;
 import org.schabi.newpipe.util.external_communication.KoreUtils;
 import org.schabi.newpipe.util.external_communication.ShareUtils;
+import org.schabi.newpipe.util.videoquality.SpecificVideoQuality;
+import org.schabi.newpipe.util.videoquality.WantedVideoQuality;
 import org.schabi.newpipe.views.ExpandableSurfaceView;
 import org.schabi.newpipe.views.player.PlayerFastSeekOverlay;
 
@@ -250,7 +250,6 @@ public final class Player implements
     //////////////////////////////////////////////////////////////////////////*/
 
     public static final String REPEAT_MODE = "repeat_mode";
-    public static final String PLAYBACK_QUALITY = "playback_quality";
     public static final String PLAY_QUEUE_KEY = "play_queue_key";
     public static final String ENQUEUE = "enqueue";
     public static final String ENQUEUE_NEXT = "enqueue_next";
@@ -450,7 +449,7 @@ public final class Player implements
 
             @Override
             public int getOverrideResolutionIndex(final List<VideoStream> sortedVideos,
-                                                  final String playbackQuality) {
+                                                  final WantedVideoQuality playbackQuality) {
                 return videoPlayerSelected()
                         ? getResolutionIndex(context, sortedVideos, playbackQuality)
                         : getPopupResolutionIndex(context, sortedVideos, playbackQuality);
@@ -710,10 +709,6 @@ public final class Player implements
         playerType = retrievePlayerTypeFromIntent(intent);
         // We need to setup audioOnly before super(), see "sourceOf"
         isAudioOnly = audioPlayerSelected();
-
-        if (intent.hasExtra(PLAYBACK_QUALITY)) {
-            setPlaybackQuality(intent.getStringExtra(PLAYBACK_QUALITY));
-        }
 
         // Resolve enqueue intents
         if (intent.getBooleanExtra(ENQUEUE, false) && playQueue != null) {
@@ -3036,7 +3031,7 @@ public final class Player implements
                 getVideoTitle(),
                 getUploaderName(),
                 showThumbnail ? Optional.ofNullable(getThumbnail()) : Optional.empty(),
-                StreamTypeUtil.isLiveStream(info.getStreamType()) ? -1 : info.getDuration()
+                info.isLive() ? -1 : info.getDuration()
         );
 
         notifyMetadataUpdateToListeners();
@@ -3375,53 +3370,27 @@ public final class Player implements
         }
         final StreamInfo info = getCurrentStreamInfo().get();
 
-        binding.qualityTextView.setVisibility(View.GONE);
-        binding.playbackSpeed.setVisibility(View.GONE);
 
-        binding.playbackEndTime.setVisibility(View.GONE);
-        binding.playbackLiveSync.setVisibility(View.GONE);
-
-        switch (info.getStreamType()) {
-            case AUDIO_STREAM:
-            case POST_LIVE_AUDIO_STREAM:
-                binding.surfaceView.setVisibility(View.GONE);
-                binding.endScreen.setVisibility(View.VISIBLE);
-                binding.playbackEndTime.setVisibility(View.VISIBLE);
-                break;
-
-            case AUDIO_LIVE_STREAM:
-                binding.surfaceView.setVisibility(View.GONE);
-                binding.endScreen.setVisibility(View.VISIBLE);
-                binding.playbackLiveSync.setVisibility(View.VISIBLE);
-                break;
-
-            case LIVE_STREAM:
-                binding.surfaceView.setVisibility(View.VISIBLE);
-                binding.endScreen.setVisibility(View.GONE);
-                binding.playbackLiveSync.setVisibility(View.VISIBLE);
-                break;
-
-            case VIDEO_STREAM:
-            case POST_LIVE_STREAM:
-                if (currentMetadata == null
-                        || !currentMetadata.getMaybeQuality().isPresent()
-                        || (info.getVideoStreams().isEmpty()
-                        && info.getVideoOnlyStreams().isEmpty())) {
-                    break;
-                }
-
-                availableStreams = currentMetadata.getMaybeQuality().get().getSortedVideoStreams();
-                selectedStreamIndex =
-                        currentMetadata.getMaybeQuality().get().getSelectedVideoStreamIndex();
-                buildQualityMenu();
-
-                binding.qualityTextView.setVisibility(View.VISIBLE);
-                binding.surfaceView.setVisibility(View.VISIBLE);
-            default:
-                binding.endScreen.setVisibility(View.GONE);
-                binding.playbackEndTime.setVisibility(View.VISIBLE);
-                break;
+        final boolean isNormal = !(info.isLive() || info.isAudioOnly());
+        binding.qualityTextView.setVisibility(isNormal ? View.GONE : View.VISIBLE);
+        if (isNormal
+                && currentMetadata != null
+                && currentMetadata.getMaybeQuality().isPresent()
+                && !(info.getVideoStreams().isEmpty()
+                && info.getVideoOnlyStreams().isEmpty())) {
+            availableStreams =
+                    currentMetadata.getMaybeQuality().get().getSortedVideoStreams();
+            selectedStreamIndex =
+                    currentMetadata.getMaybeQuality().get().getSelectedVideoStreamIndex();
+            buildQualityMenu();
         }
+
+        binding.surfaceView.setVisibility(info.isAudioOnly() ? View.GONE : View.VISIBLE);
+
+        binding.endScreen.setVisibility(info.isLive() ? View.GONE : View.VISIBLE);
+
+        binding.playbackEndTime.setVisibility(info.isLive() ? View.GONE : View.VISIBLE);
+        binding.playbackLiveSync.setVisibility(info.isLive() ? View.VISIBLE : View.GONE);
 
         buildPlaybackSpeedMenu();
         binding.playbackSpeed.setVisibility(View.VISIBLE);
@@ -3469,11 +3438,15 @@ public final class Player implements
 
         for (int i = 0; i < availableStreams.size(); i++) {
             final VideoStream videoStream = availableStreams.get(i);
-            qualityPopupMenu.getMenu().add(POPUP_MENU_ID_QUALITY, i, Menu.NONE, MediaFormat
-                    .getNameById(videoStream.getFormatId()) + " " + videoStream.getResolution());
+            qualityPopupMenu.getMenu().add(
+                    POPUP_MENU_ID_QUALITY,
+                    i,
+                    Menu.NONE,
+                    VideoQualityStringifier.toString(videoStream.qualityData()));
         }
         if (getSelectedVideoStream() != null) {
-            binding.qualityTextView.setText(getSelectedVideoStream().getResolution());
+            binding.qualityTextView.setText(
+                    VideoQualityStringifier.toString(getSelectedVideoStream().qualityData()));
         }
         qualityPopupMenu.setOnMenuItemClickListener(this);
         qualityPopupMenu.setOnDismissListener(this);
@@ -3591,9 +3564,10 @@ public final class Player implements
             }
 
             saveStreamProgressState(); //TODO added, check if good
-            final String newResolution = availableStreams.get(menuItemIndex).getResolution();
+            final WantedVideoQuality newQuality =
+                    SpecificVideoQuality.from(availableStreams.get(menuItemIndex).qualityData());
             setRecovery();
-            setPlaybackQuality(newResolution);
+            setPlaybackQuality(newQuality);
             reloadPlayQueueManager();
 
             binding.qualityTextView.setText(menuItem.getTitle());
@@ -3635,7 +3609,7 @@ public final class Player implements
         isSomePopupMenuVisible = true;
     }
 
-    private void setPlaybackQuality(@Nullable final String quality) {
+    private void setPlaybackQuality(@Nullable final WantedVideoQuality quality) {
         videoResolver.setPlaybackQuality(quality);
     }
     //endregion
@@ -4218,7 +4192,7 @@ public final class Player implements
         // Reload the play queue manager in this case, which is the behavior when we don't know the
         // index of the video renderer or playQueueManagerReloadingNeeded returns true.
         final Optional<StreamInfo> optCurrentStreamInfo = getCurrentStreamInfo();
-        if (!optCurrentStreamInfo.isPresent()) {
+        if (optCurrentStreamInfo.isEmpty()) {
             reloadPlayQueueManager();
             setRecovery();
             return;
@@ -4265,15 +4239,14 @@ public final class Player implements
      * Return whether the play queue manager needs to be reloaded when switching player type.
      *
      * <p>
-     * The play queue manager needs to be reloaded if the video renderer index is not known and if
-     * the content is not an audio content, but also if none of the following cases is met:
+     * The play queue manager needs to be reloaded if...
+     * <ul>
+     *     <li>the video renderer index is not known and the content is not audio only</li>
+     *     <li>the content is not an audio content and the content is not live</li>
+     * </ul>
+     * also if none of the following cases is met:
      *
      * <ul>
-     *     <li>the content is an {@link StreamType#AUDIO_STREAM audio stream}, an
-     *     {@link StreamType#AUDIO_LIVE_STREAM audio live stream}, or a
-     *     {@link StreamType#POST_LIVE_AUDIO_STREAM ended audio live stream};</li>
-     *     <li>the content is a {@link StreamType#LIVE_STREAM live stream} and the source type is a
-     *     {@link SourceType#LIVE_STREAM live source};</li>
      *     <li>the content's source is {@link SourceType#VIDEO_WITH_SEPARATED_AUDIO a video stream
      *     with a separated audio source} or has no audio-only streams available <b>and</b> is a
      *     {@link StreamType#VIDEO_STREAM video stream}, an
@@ -4283,45 +4256,28 @@ public final class Player implements
      * </ul>
      * </p>
      *
-     * @param sourceType         the {@link SourceType} of the stream
+     * @param sourceType
      * @param streamInfo         the {@link StreamInfo} of the stream
      * @param videoRendererIndex the video renderer index of the video source, if that's a video
      *                           source (or {@link #RENDERER_UNAVAILABLE})
      * @return whether the play queue manager needs to be reloaded
      */
-    private boolean playQueueManagerReloadingNeeded(final SourceType sourceType,
-                                                    @NonNull final StreamInfo streamInfo,
-                                                    final int videoRendererIndex) {
-        final StreamType streamType = streamInfo.getStreamType();
-        final boolean isStreamTypeAudio = StreamTypeUtil.isAudio(streamType);
-
-        if (videoRendererIndex == RENDERER_UNAVAILABLE && !isStreamTypeAudio) {
+    private boolean playQueueManagerReloadingNeeded(
+            @NonNull final SourceType sourceType,
+            @NonNull final StreamInfo streamInfo,
+            final int videoRendererIndex) {
+        if (videoRendererIndex == RENDERER_UNAVAILABLE && !streamInfo.isAudioOnly()) {
             return true;
+        }
+
+        if (sourceType == SourceType.VIDEO_WITH_SEPARATED_AUDIO && !streamInfo.isAudioOnly()) {
+            return false;
         }
 
         // The content is an audio stream, an audio live stream, or a live stream with a live
         // source: it's not needed to reload the play queue manager because the stream source will
         // be the same
-        if (isStreamTypeAudio || (streamType == StreamType.LIVE_STREAM
-                && sourceType == SourceType.LIVE_STREAM)) {
-            return false;
-        }
-
-        // The content's source is a video with separated audio or a video with audio -> the video
-        // and its fetch may be disabled
-        // The content's source is a video with embedded audio and the content has no separated
-        // audio stream available: it's probably not needed to reload the play queue manager
-        // because the stream source will be probably the same as the current played
-        if (sourceType == SourceType.VIDEO_WITH_SEPARATED_AUDIO
-                || (sourceType == SourceType.VIDEO_WITH_AUDIO_OR_AUDIO_ONLY
-                    && isNullOrEmpty(streamInfo.getAudioStreams()))) {
-            // It's not needed to reload the play queue manager only if the content's stream type
-            // is a video stream, a live stream or an ended live stream
-            return !StreamTypeUtil.isVideo(streamType);
-        }
-
-        // Other cases: the play queue manager reload is needed
-        return true;
+        return !streamInfo.isAudioOnly() && !streamInfo.isLive();
     }
     //endregion
 

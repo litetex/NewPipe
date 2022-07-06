@@ -1,5 +1,7 @@
 package org.schabi.newpipe;
 
+import static org.schabi.newpipe.MainActivity.DEBUG;
+
 import android.content.Context;
 import android.os.Build;
 
@@ -38,8 +40,6 @@ import okhttp3.ConnectionSpec;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
-
-import static org.schabi.newpipe.MainActivity.DEBUG;
 
 public final class DownloaderImpl extends Downloader {
     public static final String USER_AGENT
@@ -174,23 +174,6 @@ public final class DownloaderImpl extends Downloader {
             removeCookie(YOUTUBE_RESTRICTED_MODE_COOKIE_KEY);
         }
         InfoCache.getInstance().clearCache();
-    }
-
-    /**
-     * Get the size of the content that the url is pointing by firing a HEAD request.
-     *
-     * @param url an url pointing to the content
-     * @return the size of the content, in bytes
-     */
-    public long getContentLength(final String url) throws IOException {
-        try {
-            final Response response = head(url);
-            return Long.parseLong(response.getHeader("Content-Length"));
-        } catch (final NumberFormatException e) {
-            throw new IOException("Invalid content length", e);
-        } catch (final ReCaptchaException e) {
-            throw new IOException(e);
-        }
     }
 
     @Override

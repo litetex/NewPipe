@@ -26,7 +26,7 @@ class StreamStatisticsEntry(
     val watchCount: Long
 ) : LocalItem {
     fun toStreamInfoItem(): StreamInfoItem {
-        val item = StreamInfoItem(streamEntity.serviceId, streamEntity.url, streamEntity.title, streamEntity.streamType)
+        val item = StreamInfoItem(streamEntity.serviceId, streamEntity.url, streamEntity.title, streamEntity.live, streamEntity.audioOnly)
         item.duration = streamEntity.duration
         item.uploaderName = streamEntity.uploader
         item.uploaderUrl = streamEntity.uploaderUrl

@@ -11,11 +11,18 @@ import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import org.schabi.newpipe.R;
-import org.schabi.newpipe.extractor.MediaFormat;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.DeliveryMethod;
-import org.schabi.newpipe.extractor.stream.Stream;
-import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.streamdata.format.AudioMediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.MediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.VideoAudioMediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.registry.AudioFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.format.registry.VideoAudioFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.stream.AudioStream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoAudioStream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
+import org.schabi.newpipe.extractor.streamdata.stream.quality.VideoQualityData;
+import org.schabi.newpipe.util.videoquality.BestVideoQuality;
+import org.schabi.newpipe.util.videoquality.SpecificVideoQuality;
+import org.schabi.newpipe.util.videoquality.WantedVideoQuality;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,82 +33,97 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class ListHelper {
     // Video format in order of quality. 0=lowest quality, n=highest quality
-    private static final List<MediaFormat> VIDEO_FORMAT_QUALITY_RANKING =
-            Arrays.asList(MediaFormat.v3GPP, MediaFormat.WEBM, MediaFormat.MPEG_4);
+    private static final List<VideoAudioMediaFormat> VIDEO_FORMAT_QUALITY_RANKING = Arrays.asList(
+            VideoAudioFormatRegistry.V3GPP,
+            VideoAudioFormatRegistry.WEBM,
+            VideoAudioFormatRegistry.MPEG_4);
 
     // Audio format in order of quality. 0=lowest quality, n=highest quality
-    private static final List<MediaFormat> AUDIO_FORMAT_QUALITY_RANKING =
-            Arrays.asList(MediaFormat.MP3, MediaFormat.WEBMA, MediaFormat.M4A);
+    private static final List<AudioMediaFormat> AUDIO_FORMAT_QUALITY_RANKING = Arrays.asList(
+            AudioFormatRegistry.MP3,
+            AudioFormatRegistry.WEBMA,
+            AudioFormatRegistry.M4A);
     // Audio format in order of efficiency. 0=most efficient, n=least efficient
-    private static final List<MediaFormat> AUDIO_FORMAT_EFFICIENCY_RANKING =
-            Arrays.asList(MediaFormat.WEBMA, MediaFormat.M4A, MediaFormat.MP3);
-    // Use a HashSet for better performance
-    private static final Set<String> HIGH_RESOLUTION_LIST = new HashSet<>(
-            Arrays.asList("1440p", "2160p"));
+    private static final List<AudioMediaFormat> AUDIO_FORMAT_EFFICIENCY_RANKING = Arrays.asList(
+            AudioFormatRegistry.WEBMA,
+            AudioFormatRegistry.M4A,
+            AudioFormatRegistry.MP3);
 
-    private ListHelper() { }
+    private static final Set<String> HIGH_RESOLUTION_LIST
+            // Uses a HashSet for better performance
+            = new HashSet<>(Arrays.asList("1440p", "2160p", "1440p60", "2160p60"));
+
+    private ListHelper() {
+    }
 
     /**
-     * @see #getDefaultResolutionIndex(String, String, MediaFormat, List)
      * @param context      Android app context
      * @param videoStreams list of the video streams to check
      * @return index of the video stream with the default index
+     * @see #getDefaultResolutionIndex(WantedVideoQuality, String, VideoAudioMediaFormat, List)
      */
     public static int getDefaultResolutionIndex(final Context context,
                                                 final List<VideoStream> videoStreams) {
-        final String defaultResolution = computeDefaultResolution(context,
+        final WantedVideoQuality defaultResolution = computeDefaultResolution(context,
                 R.string.default_resolution_key, R.string.default_resolution_value);
         return getDefaultResolutionWithDefaultFormat(context, defaultResolution, videoStreams);
     }
 
     /**
-     * @see #getDefaultResolutionIndex(String, String, MediaFormat, List)
-     * @param context           Android app context
-     * @param videoStreams      list of the video streams to check
-     * @param defaultResolution the default resolution to look for
+     * @param context      Android app context
+     * @param videoStreams list of the video streams to check
+     * @param videoQuality the default resolution to look for
      * @return index of the video stream with the default index
+     * @see #getDefaultResolutionIndex(WantedVideoQuality, String, VideoAudioMediaFormat, List)
      */
     public static int getResolutionIndex(final Context context,
                                          final List<VideoStream> videoStreams,
-                                         final String defaultResolution) {
-        return getDefaultResolutionWithDefaultFormat(context, defaultResolution, videoStreams);
+                                         final WantedVideoQuality videoQuality) {
+        return getDefaultResolutionWithDefaultFormat(context, videoQuality, videoStreams);
     }
 
     /**
-     * @see #getDefaultResolutionIndex(String, String, MediaFormat, List)
-     * @param context           Android app context
-     * @param videoStreams      list of the video streams to check
+     * @param context      Android app context
+     * @param videoStreams list of the video streams to check
      * @return index of the video stream with the default index
+     * @see #getDefaultResolutionIndex(WantedVideoQuality, String, VideoAudioMediaFormat, List)
      */
     public static int getPopupDefaultResolutionIndex(final Context context,
                                                      final List<VideoStream> videoStreams) {
-        final String defaultResolution = computeDefaultResolution(context,
-                R.string.default_popup_resolution_key, R.string.default_popup_resolution_value);
-        return getDefaultResolutionWithDefaultFormat(context, defaultResolution, videoStreams);
+        final WantedVideoQuality wantedVideoQuality = computeDefaultResolution(
+                context,
+                R.string.default_popup_resolution_key,
+                R.string.default_popup_resolution_value);
+        return getDefaultResolutionWithDefaultFormat(context, wantedVideoQuality, videoStreams);
     }
 
     /**
-     * @see #getDefaultResolutionIndex(String, String, MediaFormat, List)
-     * @param context           Android app context
-     * @param videoStreams      list of the video streams to check
-     * @param defaultResolution the default resolution to look for
+     * @param context      Android app context
+     * @param videoStreams list of the video streams to check
+     * @param videoQuality the default resolution to look for
      * @return index of the video stream with the default index
+     * @see #getDefaultResolutionIndex(WantedVideoQuality, String, VideoAudioMediaFormat, List)
      */
     public static int getPopupResolutionIndex(final Context context,
                                               final List<VideoStream> videoStreams,
-                                              final String defaultResolution) {
-        return getDefaultResolutionWithDefaultFormat(context, defaultResolution, videoStreams);
+                                              final WantedVideoQuality videoQuality) {
+        return getDefaultResolutionWithDefaultFormat(context, videoQuality, videoStreams);
     }
 
     public static int getDefaultAudioFormat(final Context context,
                                             final List<AudioStream> audioStreams) {
-        final MediaFormat defaultFormat = getDefaultFormat(context,
-                R.string.default_audio_format_key, R.string.default_audio_format_value);
+        final AudioMediaFormat defaultFormat = getDefaultFormat(
+                context,
+                R.string.default_audio_format_key,
+                R.string.default_audio_format_value,
+                ListHelper::getAudioMediaFormatFromKey);
 
         // If the user has chosen to limit resolution to conserve mobile data
         // usage then we should also limit our audio usage.
@@ -110,51 +132,6 @@ public final class ListHelper {
         } else {
             return getHighestQualityAudioIndex(defaultFormat, audioStreams);
         }
-    }
-
-    /**
-     * Return a {@link Stream} list which uses the given delivery method from a {@link Stream}
-     * list.
-     *
-     * @param streamList     the original {@link Stream stream} list
-     * @param deliveryMethod the {@link DeliveryMethod delivery method}
-     * @param <S>            the item type's class that extends {@link Stream}
-     * @return a {@link Stream stream} list which uses the given delivery method
-     */
-    @NonNull
-    public static <S extends Stream> List<S> getStreamsOfSpecifiedDelivery(
-            final List<S> streamList,
-            final DeliveryMethod deliveryMethod) {
-        return getFilteredStreamList(streamList,
-                stream -> stream.getDeliveryMethod() == deliveryMethod);
-    }
-
-    /**
-     * Return a {@link Stream} list which only contains URL streams and non-torrent streams.
-     *
-     * @param streamList the original stream list
-     * @param <S>        the item type's class that extends {@link Stream}
-     * @return a stream list which only contains URL streams and non-torrent streams
-     */
-    @NonNull
-    public static <S extends Stream> List<S> getUrlAndNonTorrentStreams(
-            final List<S> streamList) {
-        return getFilteredStreamList(streamList,
-                stream -> stream.isUrl() && stream.getDeliveryMethod() != DeliveryMethod.TORRENT);
-    }
-
-    /**
-     * Return a {@link Stream} list which only contains non-torrent streams.
-     *
-     * @param streamList the original stream list
-     * @param <S>        the item type's class that extends {@link Stream}
-     * @return a stream list which only contains non-torrent streams
-     */
-    @NonNull
-    public static <S extends Stream> List<S> getNonTorrentStreams(
-            final List<S> streamList) {
-        return getFilteredStreamList(streamList,
-                stream -> stream.getDeliveryMethod() != DeliveryMethod.TORRENT);
     }
 
     /**
@@ -172,7 +149,7 @@ public final class ListHelper {
     @NonNull
     public static List<VideoStream> getSortedStreamVideosList(
             @NonNull final Context context,
-            @Nullable final List<VideoStream> videoStreams,
+            @Nullable final List<VideoAudioStream> videoStreams,
             @Nullable final List<VideoStream> videoOnlyStreams,
             final boolean ascendingOrder,
             final boolean preferVideoOnlyStreams) {
@@ -181,8 +158,10 @@ public final class ListHelper {
 
         final boolean showHigherResolutions = preferences.getBoolean(
                 context.getString(R.string.show_higher_resolutions_key), false);
-        final MediaFormat defaultFormat = getDefaultFormat(context,
-                R.string.default_video_format_key, R.string.default_video_format_value);
+        final VideoAudioMediaFormat defaultFormat = getDefaultFormat(context,
+                R.string.default_video_format_key,
+                R.string.default_video_format_value,
+                ListHelper::getVideoMediaFormatFromKey);
 
         return getSortedStreamVideosList(defaultFormat, showHigherResolutions, videoStreams,
                 videoOnlyStreams, ascendingOrder, preferVideoOnlyStreams);
@@ -191,44 +170,32 @@ public final class ListHelper {
     /*//////////////////////////////////////////////////////////////////////////
     // Utils
     //////////////////////////////////////////////////////////////////////////*/
+    private static WantedVideoQuality computeDefaultResolution(
+            final Context context,
+            final int key,
+            final int value
+    ) {
+        final SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(context);
 
-    /**
-     * Get a filtered stream list, by using Java 8 Stream's API and the given predicate.
-     *
-     * @param streamList          the stream list to filter
-     * @param streamListPredicate the predicate which will be used to filter streams
-     * @param <S>                 the item type's class that extends {@link Stream}
-     * @return a new stream list filtered using the given predicate
-     */
-    private static <S extends Stream> List<S> getFilteredStreamList(
-            final List<S> streamList,
-            final Predicate<S> streamListPredicate) {
-        if (streamList == null) {
-            return Collections.emptyList();
-        }
+        final String bestResolutionKey = context.getString(R.string.best_resolution_key);
 
-        return streamList.stream()
-                .filter(streamListPredicate)
-                .collect(Collectors.toList());
-    }
-
-    private static String computeDefaultResolution(final Context context, final int key,
-                                                   final int value) {
-        final SharedPreferences preferences
-                = PreferenceManager.getDefaultSharedPreferences(context);
+        final String resolution = pref != null
+                ? pref.getString(context.getString(key), context.getString(value))
+                : bestResolutionKey;
 
         // Load the preferred resolution otherwise the best available
-        String resolution = preferences != null
-                ? preferences.getString(context.getString(key), context.getString(value))
-                : context.getString(R.string.best_resolution_key);
+        WantedVideoQuality preferredQuality = bestResolutionKey.equals(resolution)
+                ? new BestVideoQuality()
+                : SpecificVideoQuality.from(resolution);
 
-        final String maxResolution = getResolutionLimit(context);
+        final WantedVideoQuality maxResolution =
+                SpecificVideoQuality.from(getResolutionLimit(context));
         if (maxResolution != null
-                && (resolution.equals(context.getString(R.string.best_resolution_key))
-                || compareVideoStreamResolution(maxResolution, resolution) < 1)) {
-            resolution = maxResolution;
+                && (preferredQuality instanceof BestVideoQuality
+                || compareVideoStreamResolution(maxResolution, preferredQuality) < 1)) {
+            preferredQuality = maxResolution;
         }
-        return resolution;
+        return preferredQuality;
     }
 
     /**
@@ -241,10 +208,10 @@ public final class ListHelper {
      * @param videoStreams      list of the video streams to check
      * @return index of the default resolution&format
      */
-    static int getDefaultResolutionIndex(final String defaultResolution,
+    static int getDefaultResolutionIndex(final WantedVideoQuality defaultResolution,
                                          final String bestResolutionKey,
-                                         final MediaFormat defaultFormat,
-                                         @Nullable final List<VideoStream> videoStreams) {
+                                         final VideoAudioMediaFormat defaultFormat,
+                                         final List<VideoStream> videoStreams) {
         if (videoStreams == null || videoStreams.isEmpty()) {
             return -1;
         }
@@ -280,16 +247,16 @@ public final class ListHelper {
      */
     @NonNull
     static List<VideoStream> getSortedStreamVideosList(
-            @Nullable final MediaFormat defaultFormat,
+            @Nullable final VideoAudioMediaFormat defaultFormat,
             final boolean showHigherResolutions,
-            @Nullable final List<VideoStream> videoStreams,
+            @Nullable final List<VideoAudioStream> videoStreams,
             @Nullable final List<VideoStream> videoOnlyStreams,
             final boolean ascendingOrder,
             final boolean preferVideoOnlyStreams
     ) {
         // Determine order of streams
         // The last added list is preferred
-        final List<List<VideoStream>> videoStreamsOrdered =
+        final List<List<? extends VideoStream>> videoStreamsOrdered =
                 preferVideoOnlyStreams
                         ? Arrays.asList(videoStreams, videoOnlyStreams)
                         : Arrays.asList(videoOnlyStreams, videoStreams);
@@ -300,21 +267,24 @@ public final class ListHelper {
                 .flatMap(List::stream)
                 // Filter out higher resolutions (or not if high resolutions should always be shown)
                 .filter(stream -> showHigherResolutions
-                        || !HIGH_RESOLUTION_LIST.contains(stream.getResolution()
-                                // Replace any frame rate with nothing
-                                .replaceAll("p\\d+$", "p")))
+                        || !HIGH_RESOLUTION_LIST.contains(
+                        VideoQualityStringifier.toString(stream.qualityData())))
                 .collect(Collectors.toList());
 
         final HashMap<String, VideoStream> hashMap = new HashMap<>();
         // Add all to the hashmap
         for (final VideoStream videoStream : allInitialStreams) {
-            hashMap.put(videoStream.getResolution(), videoStream);
+            hashMap.put(
+                    VideoQualityStringifier.toString(videoStream.qualityData()),
+                    videoStream);
         }
 
         // Override the values when the key == resolution, with the defaultFormat
         for (final VideoStream videoStream : allInitialStreams) {
-            if (videoStream.getFormat() == defaultFormat) {
-                hashMap.put(videoStream.getResolution(), videoStream);
+            if (videoStream.mediaFormat().equals(defaultFormat)) {
+                hashMap.put(
+                        VideoQualityStringifier.toString(videoStream.qualityData()),
+                        videoStream);
             }
         }
 
@@ -357,7 +327,7 @@ public final class ListHelper {
      * @param audioStreams List of audio streams
      * @return Index of audio stream that produces the most compact results or -1 if not found
      */
-    static int getHighestQualityAudioIndex(@Nullable final MediaFormat format,
+    static int getHighestQualityAudioIndex(@Nullable final AudioMediaFormat format,
                                            @Nullable final List<AudioStream> audioStreams) {
         return getAudioIndexByHighestRank(format, audioStreams,
                 // Compares descending (last = highest rank)
@@ -373,7 +343,7 @@ public final class ListHelper {
      * @param audioStreams List of audio streams
      * @return Index of audio stream that produces the most compact results or -1 if not found
      */
-    static int getMostCompactAudioIndex(@Nullable final MediaFormat format,
+    static int getMostCompactAudioIndex(@Nullable final AudioMediaFormat format,
                                         @Nullable final List<AudioStream> audioStreams) {
 
         return getAudioIndexByHighestRank(format, audioStreams,
@@ -391,7 +361,7 @@ public final class ListHelper {
      * @param comparator     The comparator used for determining the max/best/highest ranked value
      * @return Index of audio stream that produces the highest ranked result or -1 if not found
      */
-    private static int getAudioIndexByHighestRank(@Nullable final MediaFormat targetedFormat,
+    private static int getAudioIndexByHighestRank(@Nullable final AudioMediaFormat targetedFormat,
                                                   @Nullable final List<AudioStream> audioStreams,
                                                   final Comparator<AudioStream> comparator) {
         if (audioStreams == null || audioStreams.isEmpty()) {
@@ -400,7 +370,7 @@ public final class ListHelper {
 
         final AudioStream highestRankedAudioStream = audioStreams.stream()
                 .filter(audioStream -> targetedFormat == null
-                        || audioStream.getFormat() == targetedFormat)
+                        || audioStream.mediaFormat().equals(targetedFormat))
                 .max(comparator)
                 .orElse(null);
 
@@ -422,94 +392,130 @@ public final class ListHelper {
      * <p>In this order:</p>
      *
      * <ol>
-     * <li>Find a format and resolution match</li>
-     * <li>Find a format and resolution match and ignore the refresh</li>
-     * <li>Find a resolution match</li>
-     * <li>Find a resolution match and ignore the refresh</li>
-     * <li>Find a resolution just below the requested resolution and ignore the refresh</li>
+     * <li>height + fps + format</li>
+     * <li>height + format</li>
+     * <li>height + fps</li>
+     * <li>height</li>
+     * <li>height < requested height</li>
      * <li>Give up</li>
      * </ol>
      *
-     * @param targetResolution the resolution to look for
-     * @param targetFormat     the format to look for
-     * @param videoStreams     the available video streams
+     * @param targetQuality the quality to look for
+     * @param targetFormat  the format to look for
+     * @param videoStreams  the available video streams
      * @return the index of the preferred video stream
      */
-    static int getVideoStreamIndex(@NonNull final String targetResolution,
-                                   final MediaFormat targetFormat,
-                                   @NonNull final List<VideoStream> videoStreams) {
-        int fullMatchIndex = -1;
-        int fullMatchNoRefreshIndex = -1;
-        int resMatchOnlyIndex = -1;
-        int resMatchOnlyNoRefreshIndex = -1;
-        int lowerResMatchNoRefreshIndex = -1;
-        final String targetResolutionNoRefresh = targetResolution.replaceAll("p\\d+$", "p");
+    static int getVideoStreamIndex(@NonNull final WantedVideoQuality targetQuality,
+                                   final VideoAudioMediaFormat targetFormat,
+                                   final List<VideoStream> videoStreams) {
+        final Predicate<VideoStream> predMediaFormat =
+                targetFormat == null
+                        ? null
+                        : v -> v.mediaFormat().equals(targetFormat);
 
-        for (int idx = 0; idx < videoStreams.size(); idx++) {
-            final MediaFormat format
-                    = targetFormat == null ? null : videoStreams.get(idx).getFormat();
-            final String resolution = videoStreams.get(idx).getResolution();
-            final String resolutionNoRefresh = resolution.replaceAll("p\\d+$", "p");
+        final List<List<Predicate<VideoStream>>> predicateGroupsToCheck;
 
-            if (format == targetFormat && resolution.equals(targetResolution)) {
-                fullMatchIndex = idx;
-            }
+        if (targetQuality instanceof BestVideoQuality) {
+            predicateGroupsToCheck = buildAndRemoveNull(
+                    buildAndRemoveNullOrReturnNull(predMediaFormat),
+                    Collections.singletonList(v -> true) // Fallback
+            );
+        } else if (targetQuality instanceof SpecificVideoQuality) {
+            final SpecificVideoQuality specificVideoQuality = (SpecificVideoQuality) targetQuality;
 
-            if (format == targetFormat && resolutionNoRefresh.equals(targetResolutionNoRefresh)) {
-                fullMatchNoRefreshIndex = idx;
-            }
+            final Predicate<VideoStream> predHeight =
+                    v -> v.qualityData().height() == specificVideoQuality.height();
 
-            if (resMatchOnlyIndex == -1 && resolution.equals(targetResolution)) {
-                resMatchOnlyIndex = idx;
-            }
+            final Predicate<VideoStream> predFPS =
+                    specificVideoQuality.fps() == SpecificVideoQuality.UNKNOWN_FPS
+                            ? null
+                            : v -> v.qualityData().fps() == specificVideoQuality.fps();
+            final Predicate<VideoStream> predBelowHeight =
+                    v -> v.qualityData().height() < specificVideoQuality.height();
 
-            if (resMatchOnlyNoRefreshIndex == -1
-                    && resolutionNoRefresh.equals(targetResolutionNoRefresh)) {
-                resMatchOnlyNoRefreshIndex = idx;
-            }
-
-            if (lowerResMatchNoRefreshIndex == -1 && compareVideoStreamResolution(
-                    resolutionNoRefresh, targetResolutionNoRefresh) < 0) {
-                lowerResMatchNoRefreshIndex = idx;
-            }
+            predicateGroupsToCheck = buildAndRemoveNull(
+                    buildAndRemoveNullOrReturnNull(predHeight, predFPS, predMediaFormat),
+                    buildAndRemoveNullOrReturnNull(predHeight, predMediaFormat),
+                    buildAndRemoveNullOrReturnNull(predHeight, predFPS),
+                    buildAndRemoveNullOrReturnNull(predHeight),
+                    buildAndRemoveNullOrReturnNull(predBelowHeight)
+            );
+        } else {
+            return -1;
         }
 
-        if (fullMatchIndex != -1) {
-            return fullMatchIndex;
+        final List<VideoStream> orderedVideoStreams = videoStreams.stream()
+                .sorted(Comparator
+                        .<VideoStream, Integer>comparing(
+                                v -> v.qualityData().height(),
+                                Comparator.reverseOrder())
+                        .thenComparing(
+                                v -> v.qualityData().fps(),
+                                Comparator.reverseOrder()))
+                .collect(Collectors.toList());
+
+        for (final List<Predicate<VideoStream>> predicatesToCheck : predicateGroupsToCheck) {
+            for (final VideoStream videoStream : orderedVideoStreams) {
+                if (predicatesToCheck.stream().allMatch(x -> x.test(videoStream))) {
+                    return videoStreams.indexOf(videoStream);
+                }
+            }
         }
-        if (fullMatchNoRefreshIndex != -1) {
-            return fullMatchNoRefreshIndex;
+        return -1;
+    }
+
+    @NonNull
+    @SafeVarargs // https://stackoverflow.com/a/21150650
+    private static <X> List<X> buildAndRemoveNull(final X... elements) {
+        return Stream.of(elements)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @Nullable
+    @SafeVarargs // https://stackoverflow.com/a/21150650
+    private static <X> List<X> buildAndRemoveNullOrReturnNull(
+            final X... elements) {
+        final List<X> list = buildAndRemoveNull(elements);
+
+        if (list.isEmpty()) {
+            return null;
         }
-        if (resMatchOnlyIndex != -1) {
-            return resMatchOnlyIndex;
-        }
-        if (resMatchOnlyNoRefreshIndex != -1) {
-            return resMatchOnlyNoRefreshIndex;
-        }
-        return lowerResMatchNoRefreshIndex;
+        return list;
     }
 
     /**
      * Fetches the desired resolution or returns the default if it is not found.
      * The resolution will be reduced if video chocking is active.
      *
-     * @param context           Android app context
-     * @param defaultResolution the default resolution
-     * @param videoStreams      the list of video streams to check
+     * @param context         Android app context
+     * @param targetedQuality the default resolution
+     * @param videoStreams    the list of video streams to check
      * @return the index of the preferred video stream
      */
-    private static int getDefaultResolutionWithDefaultFormat(@NonNull final Context context,
-                                                             final String defaultResolution,
-                                                             final List<VideoStream> videoStreams) {
-        final MediaFormat defaultFormat = getDefaultFormat(context,
-                R.string.default_video_format_key, R.string.default_video_format_value);
-        return getDefaultResolutionIndex(defaultResolution,
-                context.getString(R.string.best_resolution_key), defaultFormat, videoStreams);
+    private static int getDefaultResolutionWithDefaultFormat(
+            final Context context,
+            final WantedVideoQuality targetedQuality,
+            final List<VideoStream> videoStreams
+    ) {
+        final VideoAudioMediaFormat defaultFormat = getDefaultFormat(
+                context,
+                R.string.default_video_format_key,
+                R.string.default_video_format_value,
+                ListHelper::getVideoMediaFormatFromKey);
+        return getDefaultResolutionIndex(
+                targetedQuality,
+                context.getString(R.string.best_resolution_key),
+                defaultFormat,
+                videoStreams);
     }
 
-    private static MediaFormat getDefaultFormat(@NonNull final Context context,
-                                                @StringRes final int defaultFormatKey,
-                                                @StringRes final int defaultFormatValueKey) {
+    private static <M extends MediaFormat> M getDefaultFormat(
+            final Context context,
+            @StringRes final int defaultFormatKey,
+            @StringRes final int defaultFormatValueKey,
+            final BiFunction<Context, String, M> mediaDataFromKeyFunc
+    ) {
         final SharedPreferences preferences
                 = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -517,69 +523,64 @@ public final class ListHelper {
         final String defaultFormatString = preferences.getString(
                 context.getString(defaultFormatKey), defaultFormat);
 
-        MediaFormat defaultMediaFormat = getMediaFormatFromKey(context, defaultFormatString);
-        if (defaultMediaFormat == null) {
-            preferences.edit().putString(context.getString(defaultFormatKey), defaultFormat)
-                    .apply();
-            defaultMediaFormat = getMediaFormatFromKey(context, defaultFormat);
+        final M defaultMediaFormat = mediaDataFromKeyFunc.apply(context, defaultFormatString);
+        if (defaultMediaFormat != null) {
+            return defaultMediaFormat;
         }
 
-        return defaultMediaFormat;
+        preferences.edit().putString(context.getString(defaultFormatKey), defaultFormat).apply();
+        return mediaDataFromKeyFunc.apply(context, defaultFormat);
     }
 
-    private static MediaFormat getMediaFormatFromKey(@NonNull final Context context,
-                                                     @NonNull final String formatKey) {
-        MediaFormat format = null;
+    private static VideoAudioMediaFormat getVideoMediaFormatFromKey(final Context context,
+                                                                    final String formatKey) {
         if (formatKey.equals(context.getString(R.string.video_webm_key))) {
-            format = MediaFormat.WEBM;
+            return VideoAudioFormatRegistry.WEBM;
         } else if (formatKey.equals(context.getString(R.string.video_mp4_key))) {
-            format = MediaFormat.MPEG_4;
+            return VideoAudioFormatRegistry.MPEG_4;
         } else if (formatKey.equals(context.getString(R.string.video_3gp_key))) {
-            format = MediaFormat.v3GPP;
-        } else if (formatKey.equals(context.getString(R.string.audio_webm_key))) {
-            format = MediaFormat.WEBMA;
-        } else if (formatKey.equals(context.getString(R.string.audio_m4a_key))) {
-            format = MediaFormat.M4A;
+            return VideoAudioFormatRegistry.V3GPP;
         }
-        return format;
+        return null;
+    }
+
+    private static AudioMediaFormat getAudioMediaFormatFromKey(final Context context,
+                                                               final String formatKey) {
+        if (formatKey.equals(context.getString(R.string.audio_webm_key))) {
+            return AudioFormatRegistry.WEBMA;
+        } else if (formatKey.equals(context.getString(R.string.audio_m4a_key))) {
+            return AudioFormatRegistry.M4A;
+        }
+        return null;
     }
 
     // Compares the quality of two audio streams
     private static int compareAudioStreamBitrate(final AudioStream streamA,
                                                  final AudioStream streamB,
-                                                 final List<MediaFormat> formatRanking) {
+                                                 final List<AudioMediaFormat> formatRanking) {
         if (streamA == null) {
             return -1;
         }
         if (streamB == null) {
             return 1;
         }
-        if (streamA.getAverageBitrate() < streamB.getAverageBitrate()) {
+        if (streamA.averageBitrate() < streamB.averageBitrate()) {
             return -1;
         }
-        if (streamA.getAverageBitrate() > streamB.getAverageBitrate()) {
+        if (streamA.averageBitrate() > streamB.averageBitrate()) {
             return 1;
         }
 
         // Same bitrate and format
-        return formatRanking.indexOf(streamA.getFormat())
-                - formatRanking.indexOf(streamB.getFormat());
+        return formatRanking.indexOf(streamA.mediaFormat())
+                - formatRanking.indexOf(streamB.mediaFormat());
     }
 
-    private static int compareVideoStreamResolution(@NonNull final String r1,
-                                                    @NonNull final String r2) {
-        try {
-            final int res1 = Integer.parseInt(r1.replaceAll("0p\\d+$", "1")
-                    .replaceAll("[^\\d.]", ""));
-            final int res2 = Integer.parseInt(r2.replaceAll("0p\\d+$", "1")
-                    .replaceAll("[^\\d.]", ""));
-            return res1 - res2;
-        } catch (final NumberFormatException e) {
-            // Consider the first one greater because we don't know if the two streams are
-            // different or not (a NumberFormatException was thrown so we don't know the resolution
-            // of one stream or of all streams)
-            return 1;
-        }
+    private static int compareVideoStreamResolution(final VideoQualityData q1,
+                                                    final VideoQualityData q2) {
+        final int res1 = q1.height() + (q1.fps() > 30 ? 1 : 0);
+        final int res2 = q2.height() + (q2.fps() > 30 ? 1 : 0);
+        return res1 - res2;
     }
 
     // Compares the quality of two video streams.
@@ -592,15 +593,16 @@ public final class ListHelper {
             return 1;
         }
 
-        final int resComp = compareVideoStreamResolution(streamA.getResolution(),
-                streamB.getResolution());
+        final int resComp = compareVideoStreamResolution(
+                streamA.qualityData(),
+                streamB.qualityData());
         if (resComp != 0) {
             return resComp;
         }
 
         // Same bitrate and format
-        return ListHelper.VIDEO_FORMAT_QUALITY_RANKING.indexOf(streamA.getFormat())
-                - ListHelper.VIDEO_FORMAT_QUALITY_RANKING.indexOf(streamB.getFormat());
+        return ListHelper.VIDEO_FORMAT_QUALITY_RANKING.indexOf(streamA.mediaFormat())
+                - ListHelper.VIDEO_FORMAT_QUALITY_RANKING.indexOf(streamB.mediaFormat());
     }
 
 
@@ -614,17 +616,16 @@ public final class ListHelper {
      * @param context App context
      * @return maximum resolution allowed or null if there is no maximum
      */
-    private static String getResolutionLimit(@NonNull final Context context) {
-        String resolutionLimit = null;
-        if (isMeteredNetwork(context)) {
-            final SharedPreferences preferences
-                    = PreferenceManager.getDefaultSharedPreferences(context);
-            final String defValue = context.getString(R.string.limit_data_usage_none_key);
-            final String value = preferences.getString(
-                    context.getString(R.string.limit_mobile_data_usage_key), defValue);
-            resolutionLimit = defValue.equals(value) ? null : value;
+    private static String getResolutionLimit(final Context context) {
+        if (!isMeteredNetwork(context)) {
+            return null;
         }
-        return resolutionLimit;
+
+        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        final String defValue = context.getString(R.string.limit_data_usage_none_key);
+        final String value = prefs.getString(
+                context.getString(R.string.limit_mobile_data_usage_key), defValue);
+        return defValue.equals(value) ? null : value;
     }
 
     /**

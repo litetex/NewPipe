@@ -3,15 +3,21 @@ package org.schabi.newpipe.util;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.schabi.newpipe.extractor.MediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.AudioMediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.VideoAudioMediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.registry.AudioFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.format.registry.VideoAudioFormatRegistry;
 import org.schabi.newpipe.extractor.streamdata.stream.AudioStream;
-import org.schabi.newpipe.extractor.streamdata.stream.Stream;
 import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
 import org.schabi.newpipe.util.StreamItemAdapter.StreamSizeWrapper;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public class SecondaryStreamHelper<T extends Stream<?>> {
+public class SecondaryStreamHelper<T extends AudioStream> {
     private final int position;
     private final StreamSizeWrapper<T> streams;
 
@@ -20,7 +26,7 @@ public class SecondaryStreamHelper<T extends Stream<?>> {
         this.streams = streams;
         this.position = streams.getStreamsList().indexOf(selectedStream);
         if (this.position < 0) {
-            throw new RuntimeException("selected stream not found");
+            throw new IllegalArgumentException("selected stream not found");
         }
     }
 
@@ -34,40 +40,30 @@ public class SecondaryStreamHelper<T extends Stream<?>> {
     @Nullable
     public static AudioStream getAudioStreamFor(@NonNull final List<AudioStream> audioStreams,
                                                 @NonNull final VideoStream videoStream) {
-        final MediaFormat mediaFormat = videoStream.getFormat();
-        if (mediaFormat == null) {
-            return null;
-        }
 
-        switch (mediaFormat) {
-            case WEBM:
-            case MPEG_4:// ¿is mpeg-4 DASH?
-                break;
-            default:
-                return null;
-        }
+        final Map<VideoAudioMediaFormat, List<AudioMediaFormat>> linkedFormats = Map.ofEntries(
+                Map.entry(VideoAudioFormatRegistry.WEBM, Arrays.asList(
+                        AudioFormatRegistry.WEBMA,
+                        AudioFormatRegistry.WEBMA_OPUS
+                )),
+                Map.entry(VideoAudioFormatRegistry.MPEG_4, Collections.singletonList(
+                        AudioFormatRegistry.M4A
+                ))
+        );
 
-        final boolean m4v = (mediaFormat == MediaFormat.MPEG_4);
-
-        for (final AudioStream audio : audioStreams) {
-            if (audio.getFormat() == (m4v ? MediaFormat.M4A : MediaFormat.WEBMA)) {
-                return audio;
-            }
-        }
-
-        if (m4v) {
-            return null;
-        }
-
-        // retry, but this time in reverse order
-        for (int i = audioStreams.size() - 1; i >= 0; i--) {
-            final AudioStream audio = audioStreams.get(i);
-            if (audio.getFormat() == MediaFormat.WEBMA_OPUS) {
-                return audio;
-            }
-        }
-
-        return null;
+        // 1. Get the supported audiomedia formats for the videostream
+        return linkedFormats.entrySet()
+                .stream()
+                .filter(e -> Objects.equals(e.getKey().name(), videoStream.mediaFormat().name()))
+                .findFirst()
+                .map(Map.Entry::getValue)
+                .orElse(Collections.emptyList())
+                // 2. Find a matching audio stream
+                .stream()
+                .flatMap(amf ->
+                        audioStreams.stream().filter(a -> amf.id() == a.mediaFormat().id()))
+                .findFirst()
+                .orElse(null);
     }
 
     public T getStream() {

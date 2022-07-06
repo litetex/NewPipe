@@ -1,5 +1,7 @@
 package org.schabi.newpipe.download;
 
+import static org.schabi.newpipe.util.Localization.assureCorrectAppLanguage;
+
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -44,14 +46,19 @@ import org.schabi.newpipe.databinding.DownloadDialogBinding;
 import org.schabi.newpipe.error.ErrorInfo;
 import org.schabi.newpipe.error.ErrorUtil;
 import org.schabi.newpipe.error.UserAction;
-import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.localization.Localization;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.Stream;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
-import org.schabi.newpipe.extractor.stream.SubtitlesStream;
-import org.schabi.newpipe.extractor.stream.VideoStream;
+import org.schabi.newpipe.extractor.streamdata.delivery.DASHDeliveryData;
+import org.schabi.newpipe.extractor.streamdata.delivery.UrlBasedDeliveryData;
+import org.schabi.newpipe.extractor.streamdata.format.MediaFormat;
+import org.schabi.newpipe.extractor.streamdata.format.registry.AudioFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.format.registry.SubtitleFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.format.registry.VideoAudioFormatRegistry;
+import org.schabi.newpipe.extractor.streamdata.stream.AudioStream;
+import org.schabi.newpipe.extractor.streamdata.stream.Stream;
+import org.schabi.newpipe.extractor.streamdata.stream.SubtitleStream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
 import org.schabi.newpipe.settings.NewPipeSettings;
 import org.schabi.newpipe.streams.io.NoFileManagerSafeGuard;
 import org.schabi.newpipe.streams.io.StoredDirectoryHelper;
@@ -64,6 +71,7 @@ import org.schabi.newpipe.util.SecondaryStreamHelper;
 import org.schabi.newpipe.util.SimpleOnSeekBarChangeListener;
 import org.schabi.newpipe.util.StreamItemAdapter;
 import org.schabi.newpipe.util.StreamItemAdapter.StreamSizeWrapper;
+import org.schabi.newpipe.util.StreamTypeUtil;
 import org.schabi.newpipe.util.ThemeHelper;
 
 import java.io.File;
@@ -71,6 +79,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import icepick.Icepick;
 import icepick.State;
@@ -81,10 +90,6 @@ import us.shandian.giga.service.DownloadManager;
 import us.shandian.giga.service.DownloadManagerService;
 import us.shandian.giga.service.DownloadManagerService.DownloadManagerBinder;
 import us.shandian.giga.service.MissionState;
-
-import static org.schabi.newpipe.extractor.stream.DeliveryMethod.PROGRESSIVE_HTTP;
-import static org.schabi.newpipe.util.ListHelper.getStreamsOfSpecifiedDelivery;
-import static org.schabi.newpipe.util.Localization.assureCorrectAppLanguage;
 
 public class DownloadDialog extends DialogFragment
         implements RadioGroup.OnCheckedChangeListener, AdapterView.OnItemSelectedListener {
@@ -98,7 +103,7 @@ public class DownloadDialog extends DialogFragment
     @State
     StreamSizeWrapper<VideoStream> wrappedVideoStreams;
     @State
-    StreamSizeWrapper<SubtitlesStream> wrappedSubtitleStreams;
+    StreamSizeWrapper<SubtitleStream> wrappedSubtitleStreams = StreamSizeWrapper.empty();
     @State
     int selectedVideoIndex; // set in the constructor
     @State
@@ -116,9 +121,9 @@ public class DownloadDialog extends DialogFragment
     private Context context;
     private boolean askForSavePath;
 
-    private StreamItemAdapter<AudioStream, Stream> audioStreamsAdapter;
+    private StreamItemAdapter<AudioStream, AudioStream> audioStreamsAdapter;
     private StreamItemAdapter<VideoStream, AudioStream> videoStreamsAdapter;
-    private StreamItemAdapter<SubtitlesStream, Stream> subtitleStreamsAdapter;
+    private StreamItemAdapter<SubtitleStream, AudioStream> subtitleStreamsAdapter;
 
     private final CompositeDisposable disposables = new CompositeDisposable();
 
@@ -159,19 +164,27 @@ public class DownloadDialog extends DialogFragment
         // TODO: Adapt this code when the downloader support other types of stream deliveries
         final List<VideoStream> videoStreams = ListHelper.getSortedStreamVideosList(
                 context,
-                getStreamsOfSpecifiedDelivery(info.getVideoStreams(), PROGRESSIVE_HTTP),
-                getStreamsOfSpecifiedDelivery(info.getVideoOnlyStreams(), PROGRESSIVE_HTTP),
+                getUrlDeliveryDataStreams(info.getVideoStreams()),
+                getUrlDeliveryDataStreams(info.getVideoOnlyStreams()),
                 false,
                 false
         );
 
         this.wrappedVideoStreams = new StreamSizeWrapper<>(videoStreams, context);
         this.wrappedAudioStreams = new StreamSizeWrapper<>(
-                getStreamsOfSpecifiedDelivery(info.getAudioStreams(), PROGRESSIVE_HTTP), context);
+                getUrlDeliveryDataStreams(info.getAudioStreams()), context);
         this.wrappedSubtitleStreams = new StreamSizeWrapper<>(
-                getStreamsOfSpecifiedDelivery(info.getSubtitles(), PROGRESSIVE_HTTP), context);
+                getUrlDeliveryDataStreams(info.getSubtitles()), context);
 
         this.selectedVideoIndex = ListHelper.getDefaultResolutionIndex(context, videoStreams);
+    }
+
+    private static <S extends Stream<?>> List<S> getUrlDeliveryDataStreams(
+            @NonNull final List<S> streams
+    ) {
+        return streams.stream()
+                .filter(s -> s.deliveryData() instanceof UrlBasedDeliveryData)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -210,7 +223,7 @@ public class DownloadDialog extends DialogFragment
         final List<VideoStream> videoStreams = wrappedVideoStreams.getStreamsList();
 
         for (int i = 0; i < videoStreams.size(); i++) {
-            if (!videoStreams.get(i).isVideoOnly()) {
+            if (!StreamTypeUtil.isVideoOnly(videoStreams.get(i))) {
                 continue;
             }
             final AudioStream audioStream = SecondaryStreamHelper
@@ -220,13 +233,8 @@ public class DownloadDialog extends DialogFragment
                 secondaryStreams.append(i, new SecondaryStreamHelper<>(wrappedAudioStreams,
                         audioStream));
             } else if (DEBUG) {
-                final MediaFormat mediaFormat = videoStreams.get(i).getFormat();
-                if (mediaFormat != null) {
-                    Log.w(TAG, "No audio stream candidates for video format "
-                            + mediaFormat.name());
-                } else {
-                    Log.w(TAG, "No audio stream candidates for unknown video format");
-                }
+                Log.w(TAG, "No audio stream candidates for video format "
+                        + videoStreams.get(i).mediaFormat().name());
             }
         }
 
@@ -619,12 +627,12 @@ public class DownloadDialog extends DialogFragment
         dialogBinding.subtitleButton.setEnabled(enabled);
     }
 
-    private int getSubtitleIndexBy(@NonNull final List<SubtitlesStream> streams) {
+    private int getSubtitleIndexBy(final List<SubtitleStream> streams) {
         final Localization preferredLocalization = NewPipe.getPreferredLocalization();
 
         int candidate = 0;
         for (int i = 0; i < streams.size(); i++) {
-            final Locale streamLocale = streams.get(i).getLocale();
+            final Locale streamLocale = streams.get(i).locale();
 
             final boolean languageEquals = streamLocale.getLanguage() != null
                     && preferredLocalization.getLanguageCode() != null
@@ -682,37 +690,31 @@ public class DownloadDialog extends DialogFragment
             case R.id.audio_button:
                 selectedMediaType = getString(R.string.last_download_type_audio_key);
                 mainStorage = mainStorageAudio;
-                format = audioStreamsAdapter.getItem(selectedAudioIndex).getFormat();
-                if (format == MediaFormat.WEBMA_OPUS) {
+                format = audioStreamsAdapter.getItem(selectedAudioIndex).mediaFormat();
+                if (format.name().equals(AudioFormatRegistry.WEBMA_OPUS.name())) {
                     mimeTmp = "audio/ogg";
                     filenameTmp += "opus";
-                } else if (format != null) {
-                    mimeTmp = format.mimeType;
-                    filenameTmp += format.suffix;
+                } else {
+                    mimeTmp = format.mimeType();
+                    filenameTmp += format.suffix();
                 }
                 break;
             case R.id.video_button:
                 selectedMediaType = getString(R.string.last_download_type_video_key);
                 mainStorage = mainStorageVideo;
-                format = videoStreamsAdapter.getItem(selectedVideoIndex).getFormat();
-                if (format != null) {
-                    mimeTmp = format.mimeType;
-                    filenameTmp += format.suffix;
-                }
+                format = videoStreamsAdapter.getItem(selectedVideoIndex).mediaFormat();
+                mimeTmp = format.mimeType();
+                filenameTmp += format.suffix();
                 break;
             case R.id.subtitle_button:
                 selectedMediaType = getString(R.string.last_download_type_subtitle_key);
                 mainStorage = mainStorageVideo; // subtitle & video files go together
-                format = subtitleStreamsAdapter.getItem(selectedSubtitleIndex).getFormat();
-                if (format != null) {
-                    mimeTmp = format.mimeType;
-                }
-
-                if (format == MediaFormat.TTML) {
-                    filenameTmp += MediaFormat.SRT.suffix;
-                } else if (format != null) {
-                    filenameTmp += format.suffix;
-                }
+                format = subtitleStreamsAdapter.getItem(selectedSubtitleIndex).mediaFormat();
+                mimeTmp = format.mimeType();
+                filenameTmp +=
+                        (format.id() == SubtitleFormatRegistry.TTML.id()
+                                ? SubtitleFormatRegistry.SRT
+                                : format).suffix();
                 break;
             default:
                 throw new RuntimeException("No stream selected");
@@ -936,8 +938,8 @@ public class DownloadDialog extends DialogFragment
             return;
         }
 
-        final Stream selectedStream;
-        Stream secondaryStream = null;
+        final Stream<?> selectedStream;
+        AudioStream secondaryStream = null;
         final char kind;
         int threads = dialogBinding.threads.getProgress() + 1;
         final String[] urls;
@@ -945,6 +947,7 @@ public class DownloadDialog extends DialogFragment
         String psName = null;
         String[] psArgs = null;
         long nearLength = 0;
+        final String mediaFormatName;
 
         // more download logic: select muxer, subtitle converter, etc.
         switch (dialogBinding.videoAudioGroup.getCheckedRadioButtonId()) {
@@ -952,9 +955,12 @@ public class DownloadDialog extends DialogFragment
                 kind = 'a';
                 selectedStream = audioStreamsAdapter.getItem(selectedAudioIndex);
 
-                if (selectedStream.getFormat() == MediaFormat.M4A) {
-                    psName = Postprocessing.ALGORITHM_M4A_NO_DASH;
-                } else if (selectedStream.getFormat() == MediaFormat.WEBMA_OPUS) {
+                mediaFormatName = selectedStream.mediaFormat().name();
+                if (AudioFormatRegistry.M4A.name().equals(mediaFormatName)) {
+                    psName = selectedStream.deliveryData() instanceof DASHDeliveryData
+                            ? Postprocessing.ALGORITHM_MP4_FROM_DASH_MUXER
+                            : Postprocessing.ALGORITHM_M4A_NO_DASH;
+                } else if (AudioFormatRegistry.WEBMA_OPUS.name().equals(mediaFormatName)) {
                     psName = Postprocessing.ALGORITHM_OGG_FROM_WEBM_DEMUXER;
                 }
                 break;
@@ -969,15 +975,15 @@ public class DownloadDialog extends DialogFragment
                 if (secondary != null) {
                     secondaryStream = secondary.getStream();
 
-                    if (selectedStream.getFormat() == MediaFormat.MPEG_4) {
+                    mediaFormatName = selectedStream.mediaFormat().name();
+                    if (VideoAudioFormatRegistry.MPEG_4.name().equals(mediaFormatName)) {
                         psName = Postprocessing.ALGORITHM_MP4_FROM_DASH_MUXER;
                     } else {
                         psName = Postprocessing.ALGORITHM_WEBM_MUXER;
                     }
 
-                    psArgs = null;
-                    final long videoSize = wrappedVideoStreams.getSizeInBytes(
-                            (VideoStream) selectedStream);
+                    final long videoSize = wrappedVideoStreams
+                            .getSizeInBytes((VideoStream) selectedStream);
 
                     // set nearLength, only, if both sizes are fetched or known. This probably
                     // does not work on slow networks but is later updated in the downloader
@@ -990,11 +996,12 @@ public class DownloadDialog extends DialogFragment
                 threads = 1; // use unique thread for subtitles due small file size
                 kind = 's';
                 selectedStream = subtitleStreamsAdapter.getItem(selectedSubtitleIndex);
+                mediaFormatName = selectedStream.mediaFormat().name();
 
-                if (selectedStream.getFormat() == MediaFormat.TTML) {
+                if (SubtitleFormatRegistry.TTML.name().equals(mediaFormatName)) {
                     psName = Postprocessing.ALGORITHM_TTML_CONVERTER;
-                    psArgs = new String[] {
-                            selectedStream.getFormat().getSuffix(),
+                    psArgs = new String[]{
+                            selectedStream.mediaFormat().suffix(),
                             "false" // ignore empty frames
                     };
                 }
@@ -1003,23 +1010,34 @@ public class DownloadDialog extends DialogFragment
                 return;
         }
 
+        if (!(selectedStream.deliveryData() instanceof UrlBasedDeliveryData)) {
+            throw new IllegalArgumentException("Unsupported stream delivery format"
+                    + selectedStream.deliveryData().getClass());
+        }
+
+        final String selectedStreamUrl =
+                ((UrlBasedDeliveryData) selectedStream.deliveryData()).url();
+
         if (secondaryStream == null) {
-            urls = new String[] {
-                    selectedStream.getContent()
+            urls = new String[]{
+                    selectedStreamUrl
             };
-            recoveryInfo = new MissionRecoveryInfo[] {
+            recoveryInfo = new MissionRecoveryInfo[]{
                     new MissionRecoveryInfo(selectedStream)
             };
         } else {
-            if (secondaryStream.getDeliveryMethod() != PROGRESSIVE_HTTP) {
+            if (!(secondaryStream.deliveryData() instanceof UrlBasedDeliveryData)) {
                 throw new IllegalArgumentException("Unsupported stream delivery format"
-                        + secondaryStream.getDeliveryMethod());
+                        + secondaryStream.deliveryData().getClass());
             }
+            final String secondaryStreamUrl =
+                    ((UrlBasedDeliveryData) secondaryStream.deliveryData()).url();
 
-            urls = new String[] {
-                    selectedStream.getContent(), secondaryStream.getContent()
+            urls = new String[]{
+                    selectedStreamUrl, secondaryStreamUrl
             };
-            recoveryInfo = new MissionRecoveryInfo[] {new MissionRecoveryInfo(selectedStream),
+            recoveryInfo = new MissionRecoveryInfo[]{
+                    new MissionRecoveryInfo(selectedStream),
                     new MissionRecoveryInfo(secondaryStream)};
         }
 

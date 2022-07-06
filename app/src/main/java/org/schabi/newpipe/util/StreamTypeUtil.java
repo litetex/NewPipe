@@ -1,6 +1,10 @@
 package org.schabi.newpipe.util;
 
 import org.schabi.newpipe.extractor.stream.StreamType;
+import org.schabi.newpipe.extractor.streamdata.stream.BaseAudioStream;
+import org.schabi.newpipe.extractor.streamdata.stream.Stream;
+import org.schabi.newpipe.extractor.streamdata.stream.SubtitleStream;
+import org.schabi.newpipe.extractor.streamdata.stream.VideoStream;
 
 /**
  * Utility class for {@link StreamType}.
@@ -46,5 +50,21 @@ public final class StreamTypeUtil {
     public static boolean isLiveStream(final StreamType streamType) {
         return streamType == StreamType.LIVE_STREAM
                 || streamType == StreamType.AUDIO_LIVE_STREAM;
+    }
+
+    public static boolean isAudio(final Stream<?> stream) {
+        return stream instanceof BaseAudioStream;
+    }
+
+    public static boolean isVideo(final Stream<?> stream) {
+        return stream instanceof VideoStream;
+    }
+
+    public static boolean isSubtitle(final Stream<?> stream) {
+        return stream instanceof SubtitleStream;
+    }
+
+    public static boolean isVideoOnly(final Stream<?> stream) {
+        return isVideo(stream) && !isAudio(stream);
     }
 }

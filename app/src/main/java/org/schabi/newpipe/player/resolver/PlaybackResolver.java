@@ -38,7 +38,6 @@ import org.schabi.newpipe.player.datasource.NonUriHlsDataSourceFactory;
 import org.schabi.newpipe.player.helper.PlayerDataSource;
 import org.schabi.newpipe.player.mediaitem.MediaItemTag;
 import org.schabi.newpipe.player.mediaitem.StreamInfoTag;
-import org.schabi.newpipe.util.StreamTypeUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -165,7 +164,7 @@ public interface PlaybackResolver extends Resolver<StreamInfo, MediaSource> {
     @Nullable
     static MediaSource maybeBuildLiveMediaSource(final PlayerDataSource dataSource,
                                                  final StreamInfo info) {
-        if (!StreamTypeUtil.isLiveStream(info.getStreamType())) {
+        if (!info.isLive()) {
             return null;
         }
 

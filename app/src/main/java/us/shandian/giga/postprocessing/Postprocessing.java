@@ -1,5 +1,9 @@
 package us.shandian.giga.postprocessing;
 
+import static us.shandian.giga.get.DownloadMission.ERROR_NOTHING;
+import static us.shandian.giga.get.DownloadMission.ERROR_POSTPROCESSING;
+import static us.shandian.giga.get.DownloadMission.ERROR_POSTPROCESSING_HOLD;
+
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -16,10 +20,6 @@ import us.shandian.giga.io.CircularFileWriter;
 import us.shandian.giga.io.CircularFileWriter.OffsetChecker;
 import us.shandian.giga.io.ProgressReport;
 
-import static us.shandian.giga.get.DownloadMission.ERROR_NOTHING;
-import static us.shandian.giga.get.DownloadMission.ERROR_POSTPROCESSING;
-import static us.shandian.giga.get.DownloadMission.ERROR_POSTPROCESSING_HOLD;
-
 public abstract class Postprocessing implements Serializable {
 
     static transient final byte OK_RESULT = ERROR_NOTHING;
@@ -30,8 +30,8 @@ public abstract class Postprocessing implements Serializable {
     public transient static final String ALGORITHM_M4A_NO_DASH = "mp4D-m4a";
     public transient static final String ALGORITHM_OGG_FROM_WEBM_DEMUXER = "webm-ogg-d";
 
-    public static Postprocessing getAlgorithm(@NonNull String algorithmName, String[] args) {
-        Postprocessing instance;
+    public static Postprocessing getAlgorithm(@NonNull final String algorithmName, final String[] args) {
+        final Postprocessing instance;
 
         switch (algorithmName) {
             case ALGORITHM_TTML_CONVERTER:
@@ -49,8 +49,6 @@ public abstract class Postprocessing implements Serializable {
             case ALGORITHM_OGG_FROM_WEBM_DEMUXER:
                 instance = new OggFromWebmDemuxer();
                 break;
-            /*case "example-algorithm":
-                instance = new ExampleAlgorithm();*/
             default:
                 throw new UnsupportedOperationException("Unimplemented post-processing algorithm: " + algorithmName);
         }
@@ -82,14 +80,14 @@ public abstract class Postprocessing implements Serializable {
 
     private transient File tempFile;
 
-    Postprocessing(boolean reserveSpace, boolean worksOnSameFile, String algorithmName) {
+    Postprocessing(final boolean reserveSpace, final boolean worksOnSameFile, final String algorithmName) {
         this.reserveSpace = reserveSpace;
         this.worksOnSameFile = worksOnSameFile;
         this.name = algorithmName;// for debugging only
     }
 
-    public void setTemporalDir(@NonNull File directory) {
-        long rnd = (int) (Math.random() * 100000.0f);
+    public void setTemporalDir(@NonNull final File directory) {
+        final long rnd = (int) (Math.random() * 100000.0f);
         tempFile = new File(directory, rnd + "_" + System.nanoTime() + ".tmp");
     }
 
@@ -98,14 +96,14 @@ public abstract class Postprocessing implements Serializable {
             try {
                 //noinspection ResultOfMethodCallIgnored
                 tempFile.delete();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // nothing to do
             }
         }
     }
 
 
-    public void run(DownloadMission target) throws IOException {
+    public void run(final DownloadMission target) throws IOException {
         this.mission = target;
 
         int result;
@@ -113,7 +111,7 @@ public abstract class Postprocessing implements Serializable {
 
         mission.done = 0;
 
-        long length = mission.storage.length() - mission.offsets[0];
+        final long length = mission.storage.length() - mission.offsets[0];
         mission.length = Math.max(length, mission.nearLength);
 
         final ProgressReport readProgress = (long position) -> {
@@ -122,20 +120,20 @@ public abstract class Postprocessing implements Serializable {
         };
 
         if (worksOnSameFile) {
-            ChunkFileInputStream[] sources = new ChunkFileInputStream[mission.urls.length];
+            final ChunkFileInputStream[] sources = new ChunkFileInputStream[mission.urls.length];
             try {
                 for (int i = 0, j = 1; i < sources.length; i++, j++) {
-                    SharpStream source = mission.storage.getStream();
-                    long end = j < sources.length ? mission.offsets[j] : source.length();
+                    final SharpStream source = mission.storage.getStream();
+                    final long end = j < sources.length ? mission.offsets[j] : source.length();
 
                     sources[i] = new ChunkFileInputStream(source, mission.offsets[i], end, readProgress);
                 }
 
                 if (test(sources)) {
-                    for (SharpStream source : sources) source.rewind();
+                    for (final SharpStream source : sources) source.rewind();
 
-                    OffsetChecker checker = () -> {
-                        for (ChunkFileInputStream source : sources) {
+                    final OffsetChecker checker = () -> {
+                        for (final ChunkFileInputStream source : sources) {
                             /*
                              * WARNING: never use rewind() in any chunk after any writing (especially on first chunks)
                              *          or the CircularFileWriter can lead to unexpected results
@@ -163,7 +161,7 @@ public abstract class Postprocessing implements Serializable {
                                     while (mission.psState == 3)
                                         wait();
                                 }
-                            } catch (InterruptedException e) {
+                            } catch (final InterruptedException e) {
                                 // nothing to do
                                 Log.e(getClass().getSimpleName(), "got InterruptedException");
                             }
@@ -180,7 +178,7 @@ public abstract class Postprocessing implements Serializable {
                     result = OK_RESULT;
                 }
             } finally {
-                for (SharpStream source : sources) {
+                for (final SharpStream source : sources) {
                     if (source != null && !source.isClosed()) {
                         source.close();
                     }
@@ -216,7 +214,7 @@ public abstract class Postprocessing implements Serializable {
      * @return {@code true} if the post-processing is required, otherwise, {@code false}
      * @throws IOException if an I/O error occurs.
      */
-    boolean test(SharpStream... sources) throws IOException {
+    boolean test(final SharpStream... sources) throws IOException {
         return true;
     }
 
@@ -230,7 +228,7 @@ public abstract class Postprocessing implements Serializable {
      */
     abstract int process(SharpStream out, SharpStream... sources) throws IOException;
 
-    String getArgumentAt(int index, String defaultValue) {
+    String getArgumentAt(final int index, final String defaultValue) {
         if (args == null || index >= args.length) {
             return defaultValue;
         }
@@ -241,12 +239,12 @@ public abstract class Postprocessing implements Serializable {
     @NonNull
     @Override
     public String toString() {
-        StringBuilder str = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
 
         str.append("{ name=").append(name).append('[');
 
         if (args != null) {
-            for (String arg : args) {
+            for (final String arg : args) {
                 str.append(", ");
                 str.append(arg);
             }
